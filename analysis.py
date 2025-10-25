@@ -31,9 +31,9 @@ def load_json_to_dataframe(json_file, parse_dates=None):
 
 
 def load_data():
-    items = load_json_to_dataframe("items.json", parse_dates=["added"])
-    users = load_json_to_dataframe("users.json", parse_dates=["created"])
-    consumptions = load_json_to_dataframe("consumptions.json", parse_dates=["time"])
+    items = load_json_to_dataframe("data/items.json", parse_dates=["added"])
+    users = load_json_to_dataframe("data/users.json", parse_dates=["created"])
+    consumptions = load_json_to_dataframe("data/consumptions.json", parse_dates=["time"])
 
     return items, users, consumptions
 
@@ -45,7 +45,7 @@ def main():
 
     try:
         items, users, consumptions = load_data()
-    except e:
+    except Exception as e:
         print(e)
 
     for table in [items, users, consumptions]:
