@@ -7,6 +7,7 @@ Boozer data analysis
 """
 
 import pandas as pd
+import requests
 import json
 from pathlib import Path
 
@@ -17,8 +18,6 @@ Args:
     json_file: Path to JSON file
     parse_dates: List of column names to parse as dates
 """
-
-
 def load_json_to_dataframe(json_file, parse_dates=None):
     df = pd.read_json(json_file)
 
@@ -29,7 +28,9 @@ def load_json_to_dataframe(json_file, parse_dates=None):
 
     return df
 
-
+"""
+Load all data files into pandas DataFrames.
+"""
 def load_data():
     items = load_json_to_dataframe("items_classified.json", parse_dates=["added"])
     users = load_json_to_dataframe("users.json", parse_dates=["created"])
@@ -37,12 +38,16 @@ def load_data():
 
     return items, users, consumptions
 
-
+"""
+return number of consumptions by user
+"""
 def get_user_consumption_count(user_id: int, consumptions) -> int:
     user_consumptions = consumptions[consumptions["user_id"] == user_id]
     return len(user_consumptions)
 
-
+"""
+return top items consumed by user
+"""
 def get_user_top_items(user_id: int, consumptions, items, top_n=5):
     user_consumptions = consumptions[consumptions["user_id"] == user_id]
     top_items_counts = user_consumptions["item_id"].value_counts().head(top_n)
@@ -56,7 +61,9 @@ def get_user_top_items(user_id: int, consumptions, items, top_n=5):
     
     return list(zip(names, counts))
 
-
+"""
+return top categories consumed by user
+"""
 def get_user_top_categories(user_id: int, consumptions, items, top_n=5):
     user_consumptions = consumptions[consumptions["user_id"] == user_id]
     merged = pd.merge(
@@ -71,14 +78,44 @@ def get_user_top_categories(user_id: int, consumptions, items, top_n=5):
         .head(top_n)
         .index.tolist()
     )
-    return top_categories
 
+    # return cateogries with counts
+    top_category_counts = (
+        merged["category"]
+        .value_counts()
+        .head(top_n)
+        .tolist()
+        )
+    return list(zip(top_categories, top_category_counts))
 
+"""
+return number of unique items consumed by user
+"""
 def get_user_variety(user_id: int, consumptions) -> int:
     user_consumptions = consumptions[consumptions["user_id"] == user_id]
     unique_items = user_consumptions["item_id"].nunique()
     return unique_items
 
+"""
+generate recap for a user id
+
+Args:
+    user_id: user id to generate recap for
+    consumptions: consumptions DataFrame
+    items: items DataFrame
+"""
+def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
+    serialised_recap = {
+        "user_id": user_id,
+        "recap": {
+            "consumption_count": get_user_consumption_count(user_id, consumptions),
+            "top_items": get_user_top_items(user_id, consumptions, items, top_n=5),
+            "top_categories": get_user_top_categories(user_id, consumptions, items, top_n=5),
+            "variety": get_user_variety(user_id, consumptions)
+        }
+    }
+
+    return serialised_recap
 
 def main():
     items, users, consumptions = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -93,12 +130,14 @@ def main():
             print("Loading data failed")
             exit(1)
 
-    user_id = 8
+    for user_id in [5, 6, 8]:
+        serialised_recap = gen_user_recap(
+            user_id,
+            consumptions=consumptions,
+            items=items
+        )
 
-    print("Consumption count:", get_user_consumption_count(user_id, consumptions))
-    print("Top items:", get_user_top_items(user_id, consumptions, items, top_n=5))
-    print("Top categories:", get_user_top_categories(user_id, consumptions, items, top_n=5))
-    print("Variety:", get_user_variety(user_id, consumptions))
+        print(serialised_recap)
 
 if __name__ == "__main__":
     main()
