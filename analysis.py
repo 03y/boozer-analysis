@@ -65,25 +65,25 @@ def get_user_top_categories(user_id: int, consumptions, items, top_n=5):
     """
     user_consumptions = consumptions[consumptions["user_id"] == user_id]
     merged = pd.merge(
-        user_consumptions,
-        items[["item_id", "category"]],
-        on="item_id",
-        how="left"
-    )
+            user_consumptions,
+            items[["item_id", "category"]],
+            on="item_id",
+            how="left"
+            )
     top_categories = (
-        merged["category"]
-        .value_counts()
-        .head(top_n)
-        .index.tolist()
-    )
+            merged["category"]
+            .value_counts()
+            .head(top_n)
+            .index.tolist()
+            )
 
     # return cateogries with counts
     top_category_counts = (
-        merged["category"]
-        .value_counts()
-        .head(top_n)
-        .tolist()
-        )
+            merged["category"]
+            .value_counts()
+            .head(top_n)
+            .tolist()
+            )
     return list(zip(top_categories, top_category_counts))
 
 def get_user_variety(user_id: int, consumptions) -> int:
@@ -124,13 +124,22 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
         items: items DataFrame
     """
     serialised_recap = {
-        "user_id": user_id,
-        "recap": {}
-    }
+            "user_id": user_id,
+            "recap": {}
+            }
 
     serialised_recap["recap"]["consumption_count"] = get_user_consumption_count(user_id, consumptions)
-    serialised_recap["recap"]["top_items"] = get_user_top_items(user_id, consumptions, items, top_n=5)
-    serialised_recap["recap"]["categories"] = get_user_top_categories(user_id, consumptions, items, top_n=50)
+
+    # if user has no consumptions then skip
+    if serialised_recap["recap"]["consumption_count"] == 0:
+        return
+
+    serialised_recap["recap"]["top_items"] = []
+    for (item, count) in get_user_top_items(user_id, consumptions, items, top_n=5):
+        serialised_recap["recap"]["top_items"].append({"name": item, "consumptions": count})
+    serialised_recap["recap"]["categories"] = []
+    for (category, count) in get_user_top_categories(user_id, consumptions, items, top_n=50):
+        serialised_recap["recap"]["categories"].append({"category": category, "consumptions": count})
     serialised_recap["recap"]["variety"] = get_user_variety(user_id, consumptions)
 
     return serialised_recap
@@ -138,6 +147,9 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
 def main():
     items, users, consumptions = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     recaps = []
+
+    # vars for second pass
+    consumption_counts = []
 
     try:
         items, users, consumptions = load_data()
@@ -155,19 +167,21 @@ def main():
         if user_id == 1:
             continue
 
-        recaps.append(
-            gen_user_recap(
-                user_id,
-                consumptions=consumptions,
-                items=items
-            )
-        )
+        recap = gen_user_recap(user_id, consumptions=consumptions, items=items)
+        if recap != None:
+            recaps.append(recap)
+            consumption_counts.append(recap["recap"]["consumption_count"])
 
     # second pass
-    # serialised_recap["recap"]["consumption_count_percentile"] = ...
+    for user in recaps:
+        user["recap"]["consumption_count_percentile"] = round(get_percentile(
+                user["recap"]["consumption_count"],
+                consumption_counts
+                ))
 
-    recaps_json = json.dumps(recaps)
-    print(recaps_json)
+    with open("recaps.json", "w") as f:
+        json.dump(recaps, f)
 
 if __name__ == "__main__":
     main()
+
