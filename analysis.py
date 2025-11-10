@@ -104,18 +104,21 @@ def get_most_popular_day(timestamps: list[pd.Timestamp]) -> str:
     """
     counts = {"Monday": 0, "Tuesday": 0, "Wednesday": 0,
             "Thursday": 0, "Friday": 0, "Saturday": 0, "Sunday": 0}
-    top_day, top_day_count = "", -1
+    top_day = {
+        "day": "",
+        "consumptions":  -1
+    }
 
     for ts in timestamps:
         day = ts.day_name()
         counts[day] += 1
 
     for day in counts:
-        if counts[day] > top_day_count:
-            top_day = day
-            top_day_count = counts[day]
+        if counts[day] > top_day["consumptions"]:
+            top_day["day"] = day
+            top_day["consumptions"] = counts[day]
 
-    return (top_day, top_day_count)
+    return top_day
 
 def get_percentile(value: int, all_values: list[int]) -> float:
     """
@@ -148,13 +151,19 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
     """
     serialised_recap = {
             "user_id": user_id,
-            "recap": {}
+            "recap": {
+                "consumptions": {},
+                "variety": {},
+                "top_day": {},
+                "top_items": {},
+                "categories": {}
+                }
             }
 
-    serialised_recap["recap"]["consumption_count"] = get_user_consumption_count(user_id, consumptions)
+    serialised_recap["recap"]["consumptions"]["consumption_count"] = get_user_consumption_count(user_id, consumptions)
 
     # if user has no consumptions then skip
-    if serialised_recap["recap"]["consumption_count"] == 0:
+    if serialised_recap["recap"]["consumptions"]["consumption_count"] == 0:
         return
 
     serialised_recap["recap"]["top_items"] = []
@@ -198,13 +207,13 @@ def main():
         recap = gen_user_recap(user_id, consumptions=consumptions, items=items)
         if recap != None:
             recaps.append(recap)
-            consumption_counts.append(recap["recap"]["consumption_count"])
+            consumption_counts.append(recap["recap"]["consumptions"]["consumption_count"])
 
     # second pass
     print("Running second pass...")
     for user in recaps:
-        user["recap"]["consumption_count_percentile"] = round(get_percentile(
-                user["recap"]["consumption_count"],
+        user["recap"]["consumptions"]["percentile"] = round(get_percentile(
+                user["recap"]["consumptions"]["consumption_count"],
                 consumption_counts
                 ))
 
