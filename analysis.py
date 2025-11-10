@@ -98,9 +98,9 @@ def get_user_variety(user_id: int, consumptions) -> int:
 def get_user_consumptions(user_id: int, consumptions: list):
     return consumptions[consumptions["user_id"] == user_id]
 
-def get_most_popular_day(timestamps: list[pd.Timestamp]) -> str:
+def get_day_distribution(timestamps: list[pd.Timestamp]) -> str:
     """
-    return the most popular day of the week from a list of timestamps
+    return each day of the week and how many consumptions
     """
     counts = {"Monday": 0, "Tuesday": 0, "Wednesday": 0,
             "Thursday": 0, "Friday": 0, "Saturday": 0, "Sunday": 0}
@@ -113,12 +113,7 @@ def get_most_popular_day(timestamps: list[pd.Timestamp]) -> str:
         day = ts.day_name()
         counts[day] += 1
 
-    for day in counts:
-        if counts[day] > top_day["consumptions"]:
-            top_day["day"] = day
-            top_day["consumptions"] = counts[day]
-
-    return top_day
+    return counts
 
 def get_percentile(value: int, all_values: list[int]) -> float:
     """
@@ -154,7 +149,7 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
             "recap": {
                 "consumptions": {},
                 "variety": {},
-                "top_day": {},
+                "days": {},
                 "top_items": {},
                 "categories": {}
                 }
@@ -175,7 +170,7 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
     serialised_recap["recap"]["variety"] = get_user_variety(user_id, consumptions)
 
     timestamps = consumptions[consumptions["user_id"] == user_id]["time"].tolist()
-    serialised_recap["recap"]["top_day"] = get_most_popular_day(timestamps)
+    serialised_recap["recap"]["days"] = get_day_distribution(timestamps)
 
     return serialised_recap
 
