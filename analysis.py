@@ -8,6 +8,7 @@ Boozer data analysis
 
 import pandas as pd
 import json
+import time
 
 def load_json_to_dataframe(json_file, parse_dates=None):
     """
@@ -94,6 +95,28 @@ def get_user_variety(user_id: int, consumptions) -> int:
     unique_items = user_consumptions["item_id"].nunique()
     return unique_items
 
+def get_user_consumptions(user_id: int, consumptions: list):
+    return consumptions[consumptions["user_id"] == user_id]
+
+def get_most_popular_day(timestamps: list[pd.Timestamp]) -> str:
+    """
+    return the most popular day of the week from a list of timestamps
+    """
+    counts = {"Monday": 0, "Tuesday": 0, "Wednesday": 0,
+            "Thursday": 0, "Friday": 0, "Saturday": 0, "Sunday": 0}
+    top_day, top_day_count = "", -1
+
+    for ts in timestamps:
+        day = ts.day_name()
+        counts[day] += 1
+
+    for day in counts:
+        if counts[day] > top_day_count:
+            top_day = day
+            top_day_count = counts[day]
+
+    return (top_day, top_day_count)
+
 def get_percentile(value: int, all_values: list[int]) -> float:
     """
     returns the percentile of a value
@@ -138,9 +161,12 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
     for (item, count) in get_user_top_items(user_id, consumptions, items, top_n=5):
         serialised_recap["recap"]["top_items"].append({"name": item, "consumptions": count})
     serialised_recap["recap"]["categories"] = []
-    for (category, count) in get_user_top_categories(user_id, consumptions, items, top_n=50):
+    for (category, count) in get_user_top_categories(user_id, consumptions, items, top_n=1000):
         serialised_recap["recap"]["categories"].append({"category": category, "consumptions": count})
     serialised_recap["recap"]["variety"] = get_user_variety(user_id, consumptions)
+
+    timestamps = consumptions[consumptions["user_id"] == user_id]["time"].tolist()
+    serialised_recap["recap"]["top_day"] = get_most_popular_day(timestamps)
 
     return serialised_recap
 
@@ -160,8 +186,10 @@ def main():
         if len(table) == 0:
             print("Loading data failed")
             exit(1)
+    print(f"Loaded {len(items)} items, {len(users)} users and {len(consumptions)} consumptions")
 
     # first pass
+    print("Running first pass...")
     for user_id in users["user_id"].tolist():
         # TODO: remove this
         if user_id == 1:
@@ -173,14 +201,18 @@ def main():
             consumption_counts.append(recap["recap"]["consumption_count"])
 
     # second pass
+    print("Running second pass...")
     for user in recaps:
         user["recap"]["consumption_count_percentile"] = round(get_percentile(
                 user["recap"]["consumption_count"],
                 consumption_counts
                 ))
 
+    print(f"Generated recaps for {len(recaps)} users")
+
     with open("recaps.json", "w") as f:
         json.dump(recaps, f)
+    print("Exported recaps to recaps.json")
 
 if __name__ == "__main__":
     main()
