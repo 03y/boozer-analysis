@@ -44,12 +44,20 @@ def get_user_consumption_count(user_id: int, consumptions) -> int:
     user_consumptions = consumptions[consumptions["user_id"] == user_id]
     return len(user_consumptions)
 
-def get_user_top_items(user_id: int, consumptions, items, top_n=5):
+def get_top_items(consumptions, items, top_n=5, user_id: int=None):
     """
-    return top items consumed by user
+    return top items
+
+    will filter for user_id if provided
+
+    Args:
+        user_id: int
     """
-    user_consumptions = consumptions[consumptions["user_id"] == user_id]
-    top_items_counts = user_consumptions["item_id"].value_counts().head(top_n)
+
+    if user_id != None:
+        consumptions = consumptions[consumptions["user_id"] == user_id]
+
+    top_items_counts = consumptions["item_id"].value_counts().head(top_n)
     top_items = top_items_counts.index.tolist()
 
     top_item_details = items[items["item_id"].isin(top_items)]
@@ -162,7 +170,7 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
         return
 
     serialised_recap["recap"]["top_items"] = []
-    for (item, count) in get_user_top_items(user_id, consumptions, items, top_n=5):
+    for (item, count) in get_top_items(consumptions, items, top_n=5, user_id=user_id):
         serialised_recap["recap"]["top_items"].append({"name": item, "consumptions": count})
     serialised_recap["recap"]["categories"] = []
     for (category, count) in get_user_top_categories(user_id, consumptions, items, top_n=1000):
@@ -174,7 +182,39 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
 
     return serialised_recap
 
+def gen_global_recap(consumptions=None, items=None, users=None) -> dict:
+    """
+    generate global recap
+
+    Args:
+        consumptions: consumptions DataFrame
+        items: items DataFrame
+    """
+    serialised_recap = {
+        "recap": {
+            "consumptions": {
+                "count": len(consumptions)
+            },
+            "items": {
+                "count": len(items),
+                "top_items": []
+            },
+            "users": {
+                "count": len(users)
+            },
+        }
+    }
+
+    for (item, count) in get_top_items(consumptions, items, top_n=5):
+        serialised_recap["recap"]["items"]["top_items"].append({"name": item, "consumptions": count})
+
+    return serialised_recap
+
 def main():
+    # ********************************************************************************
+    # load data
+    # ********************************************************************************
+
     items, users, consumptions = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     recaps = []
 
@@ -191,6 +231,23 @@ def main():
             print("Loading data failed")
             exit(1)
     print(f"Loaded {len(items)} items, {len(users)} users and {len(consumptions)} consumptions")
+
+    # ********************************************************************************
+    # global recap
+    # ********************************************************************************
+    print("\nGenerating global recap")
+
+    global_recap = gen_global_recap(consumptions, items, users)
+
+    with open("global.json", "w") as f:
+        json.dump(global_recap, f)
+
+    print("Generated global recap")
+
+    # ********************************************************************************
+    # user recaps
+    # ********************************************************************************
+    print("\nGenerating user recaps")
 
     # first pass
     print("Running first pass...")
