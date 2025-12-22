@@ -143,6 +143,59 @@ def get_percentile(value: int, all_values: list[int]) -> float:
 
     return 100-min(percentile_rank, 100.0)
 
+
+def get_user_weekly_consumptions(
+    user_id: int,
+    consumptions,
+    week_freq: str = "W-MON",
+    include_empty_weeks: bool = True,
+    as_dicts: bool = False,
+) -> list:
+    """
+    Return weekly consumption totals for a given user.
+
+    Args:
+        user_id: user id to filter consumptions by
+        consumptions: pandas DataFrame with at least columns ['user_id', 'time']
+                      where 'time' is a datetime-like column
+        week_freq: pandas offset alias for week frequency. Default "W-MON"
+                   (weekly bins anchored to Mondays). Change to "W-SUN" etc. as needed.
+        include_empty_weeks: if True, fills in weeks with zero counts between
+                             the first and last week for that user.
+        as_dicts: if True, returns a list of dicts: 
+                  [{"week_start": "YYYY-MM-DD", "consumptions": int}, ...]
+
+    Returns:
+        If as_dicts is False: a list of ints (counts) ordered chronologically.
+        If as_dicts is True: a list of dicts with 'week_start' (ISO date string) and 'consumptions'.
+    """
+    # filter for the user
+    user_c = consumptions[consumptions["user_id"] == user_id].copy()
+    if user_c.empty:
+        return []
+
+    # ensure 'time' is datetime
+    user_c["time"] = pd.to_datetime(user_c["time"])
+
+    # group by weekly periods
+    weekly_counts = user_c.groupby(pd.Grouper(key="time", freq=week_freq)).size().sort_index()
+
+    # optionally fill missing weeks between first and last
+    if include_empty_weeks and not weekly_counts.empty:
+        start = weekly_counts.index.min()
+        end = weekly_counts.index.max()
+        full_idx = pd.date_range(start=start, end=end, freq=week_freq)
+        weekly_counts = weekly_counts.reindex(full_idx, fill_value=0)
+
+    # return either simple list of ints or list of dicts with week start date
+    if as_dicts:
+        return [
+            {"week_start": ts.strftime("%Y-%m-%d"), "consumptions": int(count)}
+            for ts, count in weekly_counts.items()
+        ]
+    return [int(x) for x in weekly_counts.tolist()]
+    
+
 def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
     """
     generate recap for a user id
@@ -168,6 +221,11 @@ def gen_user_recap(user_id: int, consumptions=None, items=None) -> dict:
     # if user has no consumptions then skip
     if serialised_recap["recap"]["consumptions"]["consumption_count"] == 0:
         return
+
+    # weekly consumption totals (list of dicts with week_start + consumptions)
+    serialised_recap["recap"]["consumptions"]["weekly_counts"] = get_user_weekly_consumptions(
+        user_id, consumptions, as_dicts=True
+    )
 
     serialised_recap["recap"]["top_items"] = []
     for (item, count) in get_top_items(consumptions, items, top_n=5, user_id=user_id):
