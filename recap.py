@@ -247,12 +247,12 @@ def get_percentile(value: int, all_values: list[int]) -> float:
     percentile_rank = (n_le / n_total) * 100
     return 100 - min(percentile_rank, 100.0)
 
-def get_user_weekly_consumptions(user_id: int, consumptions, week_freq: str = "W-MON", include_empty_weeks: bool = True, as_dicts: bool = False) -> list:
+def get_weekly_consumptions(consumptions, user_id: int = None, week_freq: str = "W-MON", include_empty_weeks: bool = True, as_dicts: bool = False) -> list:
     """
-    Return weekly consumption totals for a given user.
+    Return weekly consumption totals
 
     Args:
-        user_id: user id to filter consumptions by
+        user_id: user id to filter consumptions by. If None, get for all users.
         consumptions: pandas DataFrame with at least columns ['user_id', 'time']
                       where 'time' is a datetime-like column
         week_freq: pandas offset alias for week frequency. Default "W-MON"
@@ -267,7 +267,10 @@ def get_user_weekly_consumptions(user_id: int, consumptions, week_freq: str = "W
         If as_dicts is True: a list of dicts with 'week_start' (ISO date string) and 'consumptions'.
     """
     # filter for the user
-    user_c = consumptions[consumptions["user_id"] == user_id].copy()
+    if user_id is not None:
+        user_c = consumptions[consumptions["user_id"] == user_id].copy()
+    else:
+        user_c = consumptions.copy()
     if user_c.empty:
         return []
 
@@ -312,8 +315,8 @@ def gen_user_recap(user_id: int, consumptions, items):
         return None
 
     # weekly consumption totals (list of dicts with week_start + consumptions)
-    recap["recap"]["weekly_counts"] = get_user_weekly_consumptions(
-        user_id, consumptions, as_dicts=True
+    recap["recap"]["weekly_counts"] = get_weekly_consumptions(
+        consumptions, user_id=user_id, as_dicts=True
     )
 
     for item, count in get_top_items(consumptions, items, top_n=5, user_id=user_id):
@@ -333,7 +336,7 @@ def gen_global_recap(consumptions, items, users):
     """
     generate global recap
     """
-    serialised_recap = {
+    recap = {
         "recap": {
             "consumptions": {"count": len(consumptions)},
             "items": {"count": len(items), "top_items": []},
@@ -342,9 +345,14 @@ def gen_global_recap(consumptions, items, users):
     }
 
     for item, count in get_top_items(consumptions, items, top_n=5):
-        serialised_recap["recap"]["items"]["top_items"].append({"name": item, "consumptions": count})
+        recap["recap"]["items"]["top_items"].append({"name": item, "consumptions": count})
 
-    return serialised_recap
+    # weekly consumption totals (list of dicts with week_start + consumptions)
+    recap["recap"]["weekly_counts"] = get_weekly_consumptions(
+        consumptions, user_id=None, as_dicts=True
+    )
+
+    return recap
 
 # --- Main Execution ---
 
