@@ -93,10 +93,25 @@ def save_classified_items_cache(cache_list):
 
 def classify_items(items_df, cache_list):
     """Classifies items using a generative AI model, with caching."""
-    if not API_KEY:
-        raise ValueError("GEMINI_API_KEY environment variable is not set")
-
     cache_dict = {str(item['item_id']): item for item in cache_list}
+
+    if not API_KEY:
+        print("GEMINI_API_KEY environment variable is not set. Using cache and marking new items as 'uncategorised'.")
+        classified_items = []
+        for _, item in items_df.iterrows():
+            item_id = item['item_id']
+            name = item['name']
+            if str(item_id) in cache_dict:
+                classification = cache_dict[str(item_id)].get('category') or cache_dict[str(item_id)].get('classification')
+            else:
+                classification = 'uncategorised'
+
+            classified_items.append({
+                'item_id': item_id,
+                'name': name,
+                'category': classification
+            })
+        return pd.DataFrame(classified_items)
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
     headers = {
@@ -232,6 +247,51 @@ def get_percentile(value: int, all_values: list[int]) -> float:
     percentile_rank = (n_le / n_total) * 100
     return 100 - min(percentile_rank, 100.0)
 
+def get_user_weekly_consumptions(user_id: int, consumptions, week_freq: str = "W-MON", include_empty_weeks: bool = True, as_dicts: bool = False) -> list:
+    """
+    Return weekly consumption totals for a given user.
+
+    Args:
+        user_id: user id to filter consumptions by
+        consumptions: pandas DataFrame with at least columns ['user_id', 'time']
+                      where 'time' is a datetime-like column
+        week_freq: pandas offset alias for week frequency. Default "W-MON"
+                   (weekly bins anchored to Mondays). Change to "W-SUN" etc. as needed.
+        include_empty_weeks: if True, fills in weeks with zero counts between
+                             the first and last week for that user.
+        as_dicts: if True, returns a list of dicts:
+                  [{"week_start": "YYYY-MM-DD", "consumptions": int}, ...]
+
+    Returns:
+        If as_dicts is False: a list of ints (counts) ordered chronologically.
+        If as_dicts is True: a list of dicts with 'week_start' (ISO date string) and 'consumptions'.
+    """
+    # filter for the user
+    user_c = consumptions[consumptions["user_id"] == user_id].copy()
+    if user_c.empty:
+        return []
+
+    # ensure 'time' is datetime
+    user_c["time"] = pd.to_datetime(user_c["time"])
+
+    # group by weekly periods
+    weekly_counts = user_c.groupby(pd.Grouper(key="time", freq=week_freq)).size().sort_index()
+
+    # optionally fill missing weeks between first and last
+    if include_empty_weeks and not weekly_counts.empty:
+        start = weekly_counts.index.min()
+        end = weekly_counts.index.max()
+        full_idx = pd.date_range(start=start, end=end, freq=week_freq)
+        weekly_counts = weekly_counts.reindex(full_idx, fill_value=0)
+
+    # return either simple list of ints or list of dicts with week start date
+    if as_dicts:
+        return [
+            {"week_start": ts.strftime("%Y-%m-%d"), "consumptions": int(count)}
+            for ts, count in weekly_counts.items()
+        ]
+    return [int(x) for x in weekly_counts.tolist()]
+
 def gen_user_recap(user_id: int, consumptions, items):
     """
     generate recap for a user id
@@ -251,14 +311,19 @@ def gen_user_recap(user_id: int, consumptions, items):
     if recap["recap"]["consumptions"]["consumption_count"] == 0:
         return None
 
+    # weekly consumption totals (list of dicts with week_start + consumptions)
+    recap["recap"]["consumptions"]["weekly_counts"] = get_user_weekly_consumptions(
+        user_id, consumptions, as_dicts=True
+    )
+
     for item, count in get_top_items(consumptions, items, top_n=5, user_id=user_id):
         recap["recap"]["top_items"].append({"name": item, "consumptions": count})
-    
+
     for category, count in get_user_top_categories(user_id, consumptions, items, top_n=1000):
         recap["recap"]["categories"].append({"category": category, "consumptions": int(count)})
 
     recap["recap"]["consumptions"]["variety"] = get_user_variety(user_id, consumptions)
-    
+
     timestamps = consumptions[consumptions["user_id"] == user_id]["time"].tolist()
     recap["recap"]["days"] = get_day_distribution(timestamps)
 
