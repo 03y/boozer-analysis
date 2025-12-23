@@ -1,9 +1,10 @@
 dotenv==0.9.9
 numpy==2.3.4
 pandas==2.3.3
-psycopg2==2.9.11
+psycopg2-binary
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 pytz==2025.2
+requests
 six==1.17.0
 tzdata==2025.2
