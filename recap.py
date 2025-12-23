@@ -98,6 +98,24 @@ def classify_items(items_df, cache_list):
 
     cache_dict = {str(item['item_id']): item for item in cache_list}
 
+    if not API_KEY:
+        print("GEMINI_API_KEY environment variable is not set. Using cache and marking new items as 'uncategorised'.")
+        classified_items = []
+        for _, item in items_df.iterrows():
+            item_id = item['item_id']
+            name = item['name']
+            if str(item_id) in cache_dict:
+                classification = cache_dict[str(item_id)].get('category') or cache_dict[str(item_id)].get('classification')
+            else:
+                classification = 'uncategorised'
+
+            classified_items.append({
+                'item_id': item_id,
+                'name': name,
+                'category': classification
+            })
+        return pd.DataFrame(classified_items)
+
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
     headers = {
         "Content-Type": "application/json",
