@@ -337,18 +337,16 @@ def gen_global_recap(consumptions, items, users):
     generate global recap
     """
     recap = {
-        "recap": {
-            "consumptions": {"count": len(consumptions)},
-            "items": {"count": len(items), "top_items": []},
-            "users": {"count": len(users)},
-        }
+        "consumptions": {"count": len(consumptions)},
+        "items": {"count": len(items), "top_items": []},
+        "users": {"count": len(users)},
     }
 
     for item, count in get_top_items(consumptions, items, top_n=5):
-        recap["recap"]["items"]["top_items"].append({"name": item, "consumptions": count})
+        recap["items"]["top_items"].append({"name": item, "consumptions": count})
 
     # weekly consumption totals (list of dicts with week_start + consumptions)
-    recap["recap"]["weekly_counts"] = get_weekly_consumptions(
+    recap["weekly_counts"] = get_weekly_consumptions(
         consumptions, user_id=None, as_dicts=True
     )
 
