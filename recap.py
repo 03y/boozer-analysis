@@ -74,6 +74,33 @@ def import_recaps_to_db(recaps):
 
     print('\nImport complete!')
 
+def import_global_recap_to_db(recap):
+    """Imports the global recap into the database."""
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is not set")
+
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+
+    year = pd.Timestamp.now().year
+    recap_data = json.dumps(recap)
+
+    print(f'Updating global recap for year {year}... ', end='')
+
+    query = """
+        INSERT INTO global_recaps (year, recap)
+        VALUES (%s, %s)
+        ON CONFLICT (year)
+        DO UPDATE SET recap = EXCLUDED.recap;
+    """
+    cur.execute(query, (year, recap_data))
+
+    print('Done!')
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
 # --- Classification Functions ---
 
 def load_classified_items_cache():
@@ -405,6 +432,7 @@ def main():
     if args.import_db:
         print("\nImporting recaps to database...")
         import_recaps_to_db(recaps)
+        import_global_recap_to_db(global_recap)
 
 
 if __name__ == "__main__":
