@@ -312,7 +312,7 @@ def gen_user_recap(user_id: int, consumptions, items):
         return None
 
     # weekly consumption totals (list of dicts with week_start + consumptions)
-    recap["recap"]["consumptions"]["weekly_counts"] = get_user_weekly_consumptions(
+    recap["recap"]["weekly_counts"] = get_user_weekly_consumptions(
         user_id, consumptions, as_dicts=True
     )
 
