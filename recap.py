@@ -93,9 +93,6 @@ def save_classified_items_cache(cache_list):
 
 def classify_items(items_df, cache_list):
     """Classifies items using a generative AI model, with caching."""
-    if not API_KEY:
-        raise ValueError("GEMINI_API_KEY environment variable is not set")
-
     cache_dict = {str(item['item_id']): item for item in cache_list}
 
     if not API_KEY:
